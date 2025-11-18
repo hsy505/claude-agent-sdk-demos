@@ -1,68 +1,91 @@
-# Claude Agent SDK Demos
+# Multi-Agent Research System
 
-> ⚠️ **IMPORTANT**: These are demo applications by Anthropic. They are intended for local development only and should NOT be deployed to production or used at scale.
-
-This repository contains multiple demonstrations of the [Claude Agent SDK](https://docs.anthropic.com/en/docs/claude-code/sdk/sdk-overview), showcasing different ways to build AI-powered applications with Claude.
-
-## Available Demos
-
-### 📧 [Email Agent](./email-agent)
-An in-development IMAP email assistant that can:
-- Display your inbox
-- Perform agentic search to find emails
-- Provide AI-powered email assistance
-
-### 📊 [Excel Demo](./excel-demo)
-Demonstrations of working with spreadsheets and Excel files using Claude.
-
-### 👋 [Hello World](./hello-world)
-A simple getting-started example to help you understand the basics of the Claude Agent SDK.
-
-### 🔬 [Research Agent](./research-agent)
-A multi-agent research system that coordinates specialized subagents to research topics and generate comprehensive reports:
-- Breaks research requests into subtopics
-- Spawns parallel researcher agents to search the web
-- Synthesizes findings into detailed reports
-- Demonstrates detailed subagent activity tracking
+A multi-agent research system that coordinates specialized subagents to research any topic and generate comprehensive reports.
 
 ## Quick Start
 
-Each demo has its own directory with dedicated setup instructions. Navigate to the specific demo folder and follow its README for setup and usage details.
-
-
-## Prerequisites
-
-- [Bun](https://bun.sh) runtime (or Node.js 18+)
-- An Anthropic API key ([get one here](https://console.anthropic.com))
-
-## Getting Started
-
-1. **Clone the repository**
 ```bash
-git clone https://github.com/anthropics/claude-code-sdk-demos.git
-cd claude-code-sdk-demos
+# Install dependencies
+uv sync
+
+# Set your API key
+export ANTHROPIC_API_KEY="your-api-key"
+
+# Run the agent
+uv run research_agent/agent.py
 ```
 
-2. **Choose a demo and navigate to its directory**
-```bash
-cd email-agent  # or excel-demo, or hello-world
+Then ask: "Research quantum computing developments in 2025"
+
+## How It Works
+
+1. **Lead agent** breaks your request into 2-4 subtopics
+2. Spawns **researcher subagents in parallel** to search the web
+3. Each researcher saves findings to `files/research_notes/`
+4. Spawns **report-writer** to create final report in `files/reports/`
+
+## Example Queries
+
+- "Research quantum computing developments"
+- "What are current trends in renewable energy?"
+- "Research the Detroit Lions 2025 season"
+
+## Agents
+
+**Lead Agent** - Coordinates everything, only uses `Task` tool
+**Researcher Agents** - Use `WebSearch` and `Write` to gather information
+**Report-Writer Agent** - Uses `Read`, `Glob`, `Write` to synthesize findings
+
+## Subagent Tracking with Hooks
+
+The system includes comprehensive tracking of all tool calls using **SDK hooks**. Every time any agent uses a tool, it's automatically logged.
+
+### What Gets Tracked
+
+- **Who**: Which agent (RESEARCHER-1, RESEARCHER-2, etc.)
+- **What**: Tool name (WebSearch, Write, Read, etc.)
+- **When**: Timestamp of call
+- **Input**: Parameters passed to the tool
+- **Output**: Success/failure and result size
+
+### How It Works
+
+**Hooks** intercept every tool call before and after execution:
+
+```python
+hooks = {
+    'PreToolUse': [HookMatcher(hooks=[tracker.pre_tool_use_hook])],
+    'PostToolUse': [HookMatcher(hooks=[tracker.post_tool_use_hook])]
+}
 ```
 
-3. **Follow the demo-specific README** for setup and usage instructions
+**parent_tool_use_id** links tool calls to their subagent:
+- When lead agent spawns a researcher via `Task` tool → gets ID "task_123"
+- All messages from that researcher include `parent_tool_use_id = "task_123"`
+- Hooks use this ID to look up which subagent made the call
 
-## Resources
+### Output Logs
 
-- [Claude Agent SDK Documentation](https://docs.anthropic.com/en/docs/claude-code/sdk/sdk-overview)
-- [API Reference](https://docs.anthropic.com/claude)
-- [GitHub Issues](https://github.com/anthropics/sdk-demos/issues)
+Each session creates timestamped logs in `logs/session_YYYYMMDD_HHMMSS/`:
 
-## Support
+**transcript.txt** - Human-readable conversation with tool details:
+```
+[RESEARCHER-1] → WebSearch
+    Input: query='quantum computing 2025'
+[RESEARCHER-1] → Write
+    Input: file='quantum_hardware.md' (1234 chars)
+```
 
-These are demo applications provided as-is. For issues related to:
-- **Claude Agent SDK**: [SDK Documentation](https://docs.anthropic.com/claude-code)
-- **Demo Issues**: [GitHub Issues](https://github.com/anthropics/sdk-demos/issues)
-- **API Questions**: [Anthropic Support](https://support.anthropic.com)
+**tool_calls.jsonl** - Structured JSON for analysis:
+```json
+{"event":"tool_call_start","agent_id":"RESEARCHER-1","tool_name":"WebSearch",...}
+{"event":"tool_call_complete","success":true,"output_size":15234}
+```
 
-## License
+### Key Files
 
-MIT - This is sample code for demonstration purposes.
+- `agent.py` - Main entry point, registers hooks
+- `utils/subagent_tracker.py` - Hook implementation
+- `utils/message_handler.py` - Extracts parent_tool_use_id
+- `prompts/` - Agent instructions
+
