@@ -1,91 +1,222 @@
 # Multi-Agent Research System
 
-A multi-agent research system that coordinates specialized subagents to research any topic and generate comprehensive reports.
+A research system that uses Moonshot Kimi API to research any topic and generate comprehensive reports with web search capabilities.
+
+## Features
+
+- **Web Search Integration**: Uses Kimi's built-in web search to find current, authoritative information
+- **Automated Topic Breakdown**: Intelligently divides complex topics into focused subtopics
+- **Parallel Research**: Investigates multiple subtopics efficiently
+- **Report Generation**: Synthesizes findings into professional, well-organized reports
+- **Session Logging**: Tracks all research activities with detailed logs
 
 ## Quick Start
 
+### 1. Install Dependencies
+
 ```bash
-# Install dependencies
+# Using uv (recommended)
 uv sync
 
-# Set your API key
-export ANTHROPIC_API_KEY="your-api-key"
-
-# Run the agent
-uv run research_agent/agent.py
+# Or using pip
+pip install -r requirements.txt
 ```
 
-Then ask: "Research quantum computing developments in 2025"
+### 2. Set Your API Key
+
+Get your API key from [Moonshot Console](https://platform.moonshot.cn/console/api-keys)
+
+```bash
+# Create .env file
+cp .env.example .env
+
+# Edit .env and add your key
+MOONSHOT_API_KEY=your_moonshot_api_key_here
+```
+
+### 3. Run the Agent
+
+```bash
+# Using uv
+uv run research_agent/agent_kimi.py
+
+# Or using python
+python research_agent/agent_kimi.py
+```
+
+## Usage Examples
+
+Try these research queries:
+
+```
+Research quantum computing developments in 2025
+研究2025年人工智能的最新进展
+What are current trends in renewable energy?
+分析电动汽车市场的现状和未来趋势
+```
 
 ## How It Works
 
-1. **Lead agent** breaks your request into 2-4 subtopics
-2. Spawns **researcher subagents in parallel** to search the web
-3. Each researcher saves findings to `files/research_notes/`
-4. Spawns **report-writer** to create final report in `files/reports/`
+1. **User Input**: You provide a research topic
+2. **Topic Analysis**: Kimi breaks down the topic into 2-4 focused subtopics
+3. **Web Research**: Each subtopic is researched using web search
+4. **Note Taking**: Research findings are saved to `files/research_notes/`
+5. **Report Writing**: All findings are synthesized into a comprehensive report in `files/reports/`
 
-## Example Queries
+## Project Structure
 
-- "Research quantum computing developments"
-- "What are current trends in renewable energy?"
-- "Research the Detroit Lions 2025 season"
+```
+.
+├── research_agent/
+│   ├── agent_kimi.py          # Main Kimi-based research agent
+│   ├── agent.py               # Original Claude-based agent (legacy)
+│   ├── prompts/               # System prompts (for legacy version)
+│   └── utils/                 # Utility modules (for legacy version)
+├── files/
+│   ├── research_notes/        # Individual research findings
+│   └── reports/               # Final synthesized reports
+├── logs/                      # Session transcripts and logs
+├── pyproject.toml            # Project dependencies
+└── README.md                 # This file
+```
 
-## Agents
+## API Information
 
-**Lead Agent** - Coordinates everything, only uses `Task` tool
-**Researcher Agents** - Use `WebSearch` and `Write` to gather information
-**Report-Writer Agent** - Uses `Read`, `Glob`, `Write` to synthesize findings
+### Moonshot Kimi API
 
-## Subagent Tracking with Hooks
+- **Endpoint**: `https://api.moonshot.cn/v1`
+- **Model**: `moonshot-v1-auto` (supports web search)
+- **Documentation**: [Kimi API Docs](https://platform.moonshot.cn/docs)
+- **Console**: [Moonshot Console](https://platform.moonshot.cn/console)
 
-The system includes comprehensive tracking of all tool calls using **SDK hooks**. Every time any agent uses a tool, it's automatically logged.
+### Supported Models
 
-### What Gets Tracked
+- `moonshot-v1-auto` - Auto-selects best model, supports web search (recommended)
+- `moonshot-v1-8k` - 8K context window
+- `moonshot-v1-32k` - 32K context window
+- `moonshot-v1-128k` - 128K context window
 
-- **Who**: Which agent (RESEARCHER-1, RESEARCHER-2, etc.)
-- **What**: Tool name (WebSearch, Write, Read, etc.)
-- **When**: Timestamp of call
-- **Input**: Parameters passed to the tool
-- **Output**: Success/failure and result size
+## Configuration
 
-### How It Works
+### Environment Variables
 
-**Hooks** intercept every tool call before and after execution:
+```bash
+MOONSHOT_API_KEY=your_api_key_here  # Required
+```
+
+### Customization
+
+You can modify the agent behavior by editing `research_agent/agent_kimi.py`:
+
+- **Model Selection**: Change `model="moonshot-v1-auto"` to use different models
+- **Temperature**: Adjust creativity (0.0 = focused, 1.0 = creative)
+- **Output Directories**: Customize paths for research notes and reports
+
+## Output Files
+
+### Research Notes (`files/research_notes/`)
+
+Individual markdown files for each subtopic:
+- Focused findings from web search
+- Source URLs and citations
+- Timestamp of research
+
+### Reports (`files/reports/`)
+
+Comprehensive synthesized reports:
+- Professional formatting
+- Organized sections
+- Consolidated insights
+- Full citations
+
+### Session Logs (`logs/session_YYYYMMDD_HHMMSS/`)
+
+- `transcript.txt` - Full conversation and activity log
+
+## Advanced Usage
+
+### Programmatic Use
 
 ```python
-hooks = {
-    'PreToolUse': [HookMatcher(hooks=[tracker.pre_tool_use_hook])],
-    'PostToolUse': [HookMatcher(hooks=[tracker.post_tool_use_hook])]
-}
+from research_agent.agent_kimi import KimiResearchAgent
+import os
+
+# Initialize agent
+agent = KimiResearchAgent(
+    api_key=os.environ.get("MOONSHOT_API_KEY"),
+    model="moonshot-v1-auto"
+)
+
+# Process research request
+agent.process_research_request("Research quantum computing")
 ```
 
-**parent_tool_use_id** links tool calls to their subagent:
-- When lead agent spawns a researcher via `Task` tool → gets ID "task_123"
-- All messages from that researcher include `parent_tool_use_id = "task_123"`
-- Hooks use this ID to look up which subagent made the call
+### Custom Research Flow
 
-### Output Logs
+```python
+# Manual control over research steps
+agent = KimiResearchAgent(api_key=your_key)
 
-Each session creates timestamped logs in `logs/session_YYYYMMDD_HHMMSS/`:
+# 1. Research specific subtopics
+results = agent.research_topic(
+    topic="AI Development",
+    subtopics=["GPT models", "Computer Vision", "Reinforcement Learning"]
+)
 
-**transcript.txt** - Human-readable conversation with tool details:
-```
-[RESEARCHER-1] → WebSearch
-    Input: query='quantum computing 2025'
-[RESEARCHER-1] → Write
-    Input: file='quantum_hardware.md' (1234 chars)
-```
-
-**tool_calls.jsonl** - Structured JSON for analysis:
-```json
-{"event":"tool_call_start","agent_id":"RESEARCHER-1","tool_name":"WebSearch",...}
-{"event":"tool_call_complete","success":true,"output_size":15234}
+# 2. Generate report
+report_path = agent.generate_report("AI Development")
 ```
 
-### Key Files
+## Comparison: Kimi vs Claude Version
 
-- `agent.py` - Main entry point, registers hooks
-- `utils/subagent_tracker.py` - Hook implementation
-- `utils/message_handler.py` - Extracts parent_tool_use_id
-- `prompts/` - Agent instructions
+| Feature | Kimi Version | Claude Version (Legacy) |
+|---------|-------------|------------------------|
+| Web Search | ✓ Built-in | ✓ Via WebSearch tool |
+| Multi-Agent | Sequential | Parallel (via Task tool) |
+| API Cost | Lower | Higher |
+| Chinese Support | ✓ Excellent | Limited |
+| Setup Complexity | Simple | Complex (SDK required) |
 
+## Troubleshooting
+
+### API Key Issues
+
+```
+Error: MOONSHOT_API_KEY not found
+```
+
+**Solution**: Make sure you've set the environment variable in `.env` file
+
+### Connection Errors
+
+```
+Error: Connection timeout
+```
+
+**Solution**: Check your internet connection and verify API endpoint is accessible
+
+### Import Errors
+
+```
+ModuleNotFoundError: No module named 'openai'
+```
+
+**Solution**: Install dependencies with `uv sync` or `pip install openai python-dotenv`
+
+## License
+
+MIT License - Feel free to use and modify for your projects.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit pull requests or open issues.
+
+## Support
+
+- **API Issues**: Contact Moonshot support at [platform.moonshot.cn](https://platform.moonshot.cn)
+- **Code Issues**: Open an issue on GitHub
+
+## Acknowledgments
+
+- Built with [Moonshot Kimi API](https://platform.moonshot.cn)
+- Inspired by multi-agent research methodologies

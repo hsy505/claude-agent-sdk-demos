@@ -1,10 +1,10 @@
 [project]
 name = "multi-agent-research"
-version = "0.1.0"
-description = "Simple multi-agent research system using Claude Agents SDK"
+version = "0.2.0"
+description = "Multi-agent research system using Moonshot Kimi API"
 requires-python = ">=3.10"
 dependencies = [
-    "claude-agent-sdk>=0.1.0",
+    "openai>=1.0.0",
     "python-dotenv>=1.0.0",
 ]
 
